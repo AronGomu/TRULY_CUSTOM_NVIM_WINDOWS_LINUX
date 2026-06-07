@@ -187,6 +187,79 @@ require('lazy').setup({
       pcall(require('telescope').load_extension, 'fzf')
       pcall(require('telescope').load_extension, 'ui-select')
 
+      -- Track files as you visit them, newest first, so <leader><leader> can show
+      -- a project-local MRU (most recently used) list instead of Telescope's
+      -- global oldfiles list.
+      local recent_project_files = {}
+
+      local function normalize_path(path) return vim.uv.fs_realpath(path) or vim.fn.fnamemodify(path, ':p') end
+
+      local function is_inside_project(path)
+        local cwd = normalize_path(vim.loop.cwd())
+        path = normalize_path(path)
+        return path == cwd or path:sub(1, #cwd + 1) == cwd .. package.config:sub(1, 1)
+      end
+
+      local function remember_file(path)
+        if path == nil or path == '' or vim.fn.filereadable(path) ~= 1 or not is_inside_project(path) then return end
+
+        path = normalize_path(path)
+
+        for i = #recent_project_files, 1, -1 do
+          if recent_project_files[i] == path then table.remove(recent_project_files, i) end
+        end
+
+        table.insert(recent_project_files, 1, path)
+      end
+
+      vim.api.nvim_create_autocmd('BufEnter', {
+        group = vim.api.nvim_create_augroup('project-recent-files', { clear = true }),
+        callback = function(args) remember_file(vim.api.nvim_buf_get_name(args.buf)) end,
+      })
+
+      local function project_recent_files()
+        local seen = {}
+        local results = {}
+        local current_path = normalize_path(vim.api.nvim_buf_get_name(0))
+
+        local function add(path)
+          if path == nil or path == '' or vim.fn.filereadable(path) ~= 1 or not is_inside_project(path) then return end
+          path = normalize_path(path)
+          if path == current_path or seen[path] then return end
+          seen[path] = true
+          table.insert(results, path)
+        end
+
+        -- First: files visited in this Neovim session, ordered newest to oldest.
+        for _, path in ipairs(recent_project_files) do
+          add(path)
+        end
+
+        -- Then: persisted oldfiles from this project only, also newest to oldest.
+        for _, path in ipairs(vim.v.oldfiles) do
+          add(path)
+        end
+
+        require('telescope.pickers')
+          .new({}, {
+            prompt_title = 'Recent Project Files',
+            finder = require('telescope.finders').new_table {
+              results = results,
+              entry_maker = function(path)
+                return {
+                  value = path,
+                  ordinal = path,
+                  display = smart_truncate_path(nil, path, true),
+                  path = path,
+                }
+              end,
+            },
+            sorter = require('telescope.config').values.generic_sorter {},
+            previewer = require('telescope.config').values.file_previewer {},
+          })
+          :find()
+      end
+
       -- See `:help telescope.builtin`
       local builtin = require 'telescope.builtin'
       vim.keymap.set('n', '<leader>sh', builtin.help_tags, { desc = '[S]earch [H]elp' })
@@ -209,9 +282,10 @@ require('lazy').setup({
       end, { desc = '[S]earch by [G]rep' })
       vim.keymap.set('n', '<leader>sd', builtin.diagnostics, { desc = '[S]earch [D]iagnostics' })
       vim.keymap.set('n', '<leader>sr', builtin.resume, { desc = '[S]earch [R]esume' })
-      vim.keymap.set('n', '<leader><leader>', function()
+      vim.keymap.set('n', '<leader><leader>', project_recent_files, { desc = '[ ] Search Recent Project Files' })
+      vim.keymap.set('n', '<leader>sz', function()
         builtin.oldfiles { path_display = function(_, path) return smart_truncate_path(_, path, true) end }
-      end, { desc = '[ ] Search Recent Files (filename only)' })
+      end, { desc = '[S]earch Recent Files from all projects' })
       vim.keymap.set('n', '<leader>sc', builtin.commands, { desc = '[S]earch [C]ommands' })
       vim.keymap.set('n', '<leader>s.', builtin.buffers, { desc = ' [S]earch existing buffers (.)' })
 
