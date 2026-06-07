@@ -1,3 +1,10 @@
+local launch_dir = vim.fn.getcwd()
+local first_arg = vim.fn.argv(0)
+if first_arg ~= nil and first_arg ~= '' and vim.fn.isdirectory(first_arg) == 1 then
+  launch_dir = vim.fn.fnamemodify(first_arg, ':p')
+  vim.cmd.cd(vim.fn.fnameescape(launch_dir))
+end
+
 vim.g.mapleader = ' '
 vim.g.maplocalleader = ' '
 vim.g.have_nerd_font = true
@@ -143,7 +150,16 @@ require('lazy').setup({
             return
           end
 
-          local cwd = vim.uv.cwd()
+          -- Clean up stale hidden Neo-tree buffers. They can be left behind when
+          -- starting Neovim with a directory argument like `nvim .`, and Neo-tree
+          -- may otherwise fail with E95 when naming its new tree buffer.
+          for _, bufnr in ipairs(vim.api.nvim_list_bufs()) do
+            if vim.api.nvim_buf_is_valid(bufnr) and vim.api.nvim_buf_get_name(bufnr):match('neo%-tree filesystem %[%d+%]$') then
+              pcall(vim.api.nvim_buf_delete, bufnr, { force = true })
+            end
+          end
+
+          local cwd = launch_dir or vim.uv.cwd()
           local project_root = vim.fn.systemlist({ 'git', '-C', cwd, 'rev-parse', '--show-toplevel' })[1]
           if vim.v.shell_error ~= 0 or project_root == nil or project_root == '' then project_root = cwd end
 
@@ -274,6 +290,7 @@ require('lazy').setup({
         },
         filesystem = {
           follow_current_file = { enabled = false },
+          hijack_netrw_behavior = 'disabled',
         },
       }
     end,
@@ -981,3 +998,4 @@ require('lazy').setup({
     },
   },
 })
+
