@@ -173,11 +173,103 @@ require('lazy').setup({
         desc = 'Toggle file tree',
       },
     },
-    opts = {
-      filesystem = {
-        follow_current_file = { enabled = false },
-      },
-    },
+    config = function()
+      local preview_group = vim.api.nvim_create_augroup('neo-tree-auto-preview', { clear = true })
+      local preview_win
+      local preview_buf
+      local preview_path
+
+      local function close_preview()
+        if preview_win and vim.api.nvim_win_is_valid(preview_win) then vim.api.nvim_win_close(preview_win, true) end
+        if preview_buf and vim.api.nvim_buf_is_valid(preview_buf) then vim.api.nvim_buf_delete(preview_buf, { force = true }) end
+        preview_win = nil
+        preview_buf = nil
+        preview_path = nil
+      end
+
+      local function show_preview(state, path)
+        if preview_path == path and preview_win and vim.api.nvim_win_is_valid(preview_win) then return end
+        close_preview()
+
+        local ok, lines = pcall(vim.fn.readfile, path, '', 500)
+        if not ok then return end
+
+        preview_buf = vim.api.nvim_create_buf(false, true)
+        vim.api.nvim_buf_set_lines(preview_buf, 0, -1, false, lines)
+        vim.bo[preview_buf].bufhidden = 'wipe'
+        vim.bo[preview_buf].buftype = 'nofile'
+        vim.bo[preview_buf].modifiable = false
+        vim.bo[preview_buf].filetype = vim.filetype.match { filename = path } or ''
+
+        local tree_width = vim.api.nvim_win_get_width(state.winid)
+        local width = math.min(100, vim.o.columns - tree_width - 4)
+        local height = math.min(vim.o.lines - 6, math.max(10, #lines))
+        if width < 10 or height < 5 then return end
+
+        preview_win = vim.api.nvim_open_win(preview_buf, false, {
+          relative = 'editor',
+          row = 1,
+          col = tree_width + 2,
+          width = width,
+          height = height,
+          border = 'rounded',
+          title = ' Preview ',
+          title_pos = 'left',
+          focusable = false,
+          style = 'minimal',
+        })
+        vim.wo[preview_win].number = true
+        preview_path = path
+
+        pcall(vim.treesitter.start, preview_buf)
+      end
+
+      require('neo-tree').setup {
+        popup_border_style = 'rounded',
+        event_handlers = {
+          {
+            event = 'neo_tree_buffer_enter',
+            handler = function()
+              local bufnr = vim.api.nvim_get_current_buf()
+
+              vim.api.nvim_clear_autocmds { group = preview_group, buffer = bufnr }
+              vim.api.nvim_create_autocmd('CursorMoved', {
+                group = preview_group,
+                buffer = bufnr,
+                callback = function()
+                  local manager = require 'neo-tree.sources.manager'
+                  local state = manager.get_state 'filesystem'
+                  if
+                    not state
+                    or not state.tree
+                    or not state.winid
+                    or not vim.api.nvim_win_is_valid(state.winid)
+                    or vim.api.nvim_get_current_win() ~= state.winid
+                  then
+                    close_preview()
+                    return
+                  end
+
+                  local ok, node = pcall(state.tree.get_node, state.tree)
+                  if ok and node and node.type == 'file' then
+                    show_preview(state, node.path)
+                  else
+                    close_preview()
+                  end
+                end,
+              })
+            end,
+          },
+          {
+            event = 'neo_tree_buffer_leave',
+            handler = close_preview,
+          },
+        },
+        filesystem = {
+          follow_current_file = { enabled = false },
+        },
+      }
+    end,
   },
 
   -- NOTE: Plugins can specify dependencies.
