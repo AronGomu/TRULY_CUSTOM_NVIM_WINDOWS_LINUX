@@ -264,6 +264,13 @@ require('lazy').setup({
             event = 'neo_tree_buffer_leave',
             handler = close_preview,
           },
+          {
+            event = 'file_opened',
+            handler = function()
+              close_preview()
+              require('neo-tree.command').execute { action = 'close' }
+            end,
+          },
         },
         filesystem = {
           follow_current_file = { enabled = false },
