@@ -117,9 +117,65 @@ require('lazy').setup({
       -- Document existing key chains
       spec = {
         { '<leader>s', group = '[S]earch', mode = { 'n', 'v' } },
-        { '<leader>t', group = '[T]oggle' },
         { '<leader>h', group = 'Git [H]unk', mode = { 'n', 'v' } }, -- Enable gitsigns recommended keymaps first
         { 'gr', group = 'LSP Actions', mode = { 'n' } },
+      },
+    },
+  },
+
+  {
+    'nvim-neo-tree/neo-tree.nvim',
+    branch = 'v3.x',
+    dependencies = {
+      'nvim-lua/plenary.nvim',
+      'MunifTanjim/nui.nvim',
+      { 'nvim-tree/nvim-web-devicons', enabled = vim.g.have_nerd_font },
+    },
+    keys = {
+      {
+        '<leader>t',
+        function()
+          local manager = require 'neo-tree.sources.manager'
+          local state = manager.get_state 'filesystem'
+
+          if state and state.winid and vim.api.nvim_win_is_valid(state.winid) then
+            vim.cmd 'Neotree close'
+            return
+          end
+
+          local cwd = vim.uv.cwd()
+          local project_root = vim.fn.systemlist({ 'git', '-C', cwd, 'rev-parse', '--show-toplevel' })[1]
+          if vim.v.shell_error ~= 0 or project_root == nil or project_root == '' then project_root = cwd end
+
+          local sep = package.config:sub(1, 1)
+          local current_file = vim.api.nvim_buf_get_name(0)
+          local current_real = current_file ~= '' and vim.uv.fs_realpath(current_file) or nil
+          local root_real = vim.uv.fs_realpath(project_root) or project_root
+          local current_is_in_project = current_real
+            and vim.fn.filereadable(current_real) == 1
+            and (current_real == root_real or current_real:sub(1, #root_real + 1) == root_real .. sep)
+
+          if current_is_in_project then
+            vim.cmd(
+              'Neotree filesystem dir='
+                .. vim.fn.fnameescape(project_root)
+                .. ' reveal_file='
+                .. vim.fn.fnameescape(current_real)
+            )
+          else
+            vim.cmd('Neotree filesystem show dir=' .. vim.fn.fnameescape(project_root))
+            vim.schedule(function()
+              state = manager.get_state 'filesystem'
+              if state and state.tree then pcall(require('neo-tree.sources.common.commands').close_all_nodes, state) end
+            end)
+          end
+        end,
+        desc = 'Toggle file tree',
+      },
+    },
+    opts = {
+      filesystem = {
+        follow_current_file = { enabled = false },
       },
     },
   },
