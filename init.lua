@@ -22,6 +22,7 @@ vim.opt.colorcolumn = '80,120'
 vim.o.scrolloff = 10
 vim.o.confirm = true
 vim.opt.shada = "'20,<50,s10,h"
+vim.opt_local.conceallevel = 2
 
 -- Sync clipboard between OS and Neovim.
 vim.schedule(function() vim.o.clipboard = 'unnamedplus' end)
@@ -518,8 +519,29 @@ require('lazy').setup({
     config = function()
       ---@diagnostic disable-next-line: missing-fields
       require('onedark').setup {
+        transparent = true, -- Tell onedark not to paint the main editor background.
         styles = {
-          comments = { italic = false },
+          comments = { italic = false }, -- Keep comments non-italic.
+        },
+        highlights = {
+          -- Keep the editor transparent; only the statusline gets a background.
+          Normal = { bg = 'none' }, -- Main editing area background.
+          NormalNC = { bg = 'none' }, -- Main editing area in non-current windows.
+          EndOfBuffer = { bg = 'none' }, -- Empty lines after the end of a file.
+          SignColumn = { bg = 'none' }, -- Left column used for git signs, diagnostics, breakpoints, etc.
+          FoldColumn = { bg = 'none' }, -- Left column used for code-folding markers.
+          CursorLine = { bg = 'none' }, -- Highlight for the entire line under the cursor.
+          CursorColumn = { bg = 'none' }, -- Highlight for the entire column under the cursor.
+          ColorColumn = { bg = 'none' }, -- Vertical guide columns, like your 80 and 120 character rulers.
+          LineNr = { bg = 'none' }, -- Line number column background.
+          CursorLineNr = { bg = 'none' }, -- Current line number background.
+
+          StatusLine = { fg = '$fg', bg = '$bg1' }, -- Active window statusline background.
+          StatusLineNC = { fg = '$grey', bg = '$bg1' }, -- Inactive window statusline background.
+          MiniStatuslineDevinfo = { fg = '$fg', bg = '$bg1' }, -- mini.statusline git/diagnostic/LSP section.
+          MiniStatuslineFilename = { fg = '$fg', bg = '$bg1' }, -- mini.statusline filename section.
+          MiniStatuslineFileinfo = { fg = '$fg', bg = '$bg1' }, -- mini.statusline filetype/encoding section.
+          MiniStatuslineInactive = { fg = '$grey', bg = '$bg1' }, -- mini.statusline when the window is inactive.
         },
       }
       vim.cmd.colorscheme 'onedark'
@@ -674,6 +696,37 @@ require('lazy').setup({
       require('tiny-inline-diagnostic').setup()
       vim.diagnostic.config { virtual_text = false } -- Disable Neovim's default virtual text diagnostics
     end,
+  },
+
+  {
+    'obsidian-nvim/obsidian.nvim',
+    version = '*', -- use latest release, remove to use latest commit
+    ---@module 'obsidian'
+    ---@type obsidian.config
+    opts = {
+      legacy_commands = false, -- this will be removed in 4.0.0
+      workspaces = {
+        {
+          name = 'brain',
+          path = '~/brain',
+        },
+      },
+      templates = {
+        subdir = '10-Templates', -- <‑‑ the folder you just created
+        date_format = '%Y-%m-%d', -- optional, used for {{date}} in the templates
+        -- optional: you can give the template files a friendly name
+        --   (the name that will appear in the picker)
+        template_names = {
+          ['media'] = 'Media-Synthesis-Template.md',
+          ['idea'] = 'Idea-Synthesis-Template.md',
+          ['article'] = 'Article-Template.md',
+          ['project'] = 'Project-Template.md',
+          ['game'] = 'Game-Concept-Template.md',
+          ['fiction'] = 'Fiction-Template.md',
+          ['biz'] = 'Business-Template.md',
+        },
+      },
+    },
   },
 
   {
