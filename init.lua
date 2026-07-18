@@ -221,6 +221,16 @@ if persisted_theme ~= nil then
   })
 end
 
+-- Angular project templates: use htmlangular so Angular LSP + treesitter apply.
+vim.filetype.add {
+  extension = {
+    html = function(path)
+      if vim.fs.root(path, { 'angular.json', 'nx.json' }) then return 'htmlangular' end
+      return 'html'
+    end,
+  },
+}
+
 -- Sync clipboard between OS and Neovim.
 vim.schedule(function() vim.o.clipboard = 'unnamedplus' end)
 
@@ -843,12 +853,47 @@ require('lazy').setup({
       })
 
       --  See `:help lsp-config` for information about keys and how to configure
+      local capabilities = vim.lsp.protocol.make_client_capabilities()
+      local ok_blink, blink = pcall(require, 'blink.cmp')
+      if ok_blink then capabilities = blink.get_lsp_capabilities(capabilities) end
+      -- vscode-html-language-server only completes when snippet support is advertised
+      capabilities.textDocument = capabilities.textDocument or {}
+      capabilities.textDocument.completion = capabilities.textDocument.completion or {}
+      capabilities.textDocument.completion.completionItem = capabilities.textDocument.completion.completionItem or {}
+      capabilities.textDocument.completion.completionItem.snippetSupport = true
+
       ---@type table<string, vim.lsp.Config>
       local servers = {
-        stylua = {}, -- Used to format Lua code
+        -- Formatters installed via Mason (not LSPs; enable is harmless if no config exists)
+        stylua = {},
+        prettierd = {},
+
+        -- Angular Language Service: TS + HTML templates (html / htmlangular)
+        -- Attaches only when angular.json or nx.json is found upward from the file.
+        angularls = {
+          capabilities = capabilities,
+          filetypes = { 'typescript', 'html', 'typescriptreact', 'htmlangular' },
+        },
+
+        -- General HTML; Angular templates are handled exclusively by angularls.
+        html = {
+          capabilities = capabilities,
+          filetypes = { 'html', 'templ' },
+          init_options = {
+            provideFormatter = false, -- prefer prettierd via conform
+            embeddedLanguages = { css = true, javascript = true },
+            configurationSection = { 'html', 'css', 'javascript' },
+          },
+        },
+
+        -- Component / global stylesheets
+        cssls = {
+          capabilities = capabilities,
+        },
 
         -- Special Lua Config, as recommended by neovim help docs
         lua_ls = {
+          capabilities = capabilities,
           on_init = function(client)
             if client.workspace_folders then
               local path = client.workspace_folders[1].name
@@ -879,14 +924,21 @@ require('lazy').setup({
 
       local ensure_installed = vim.tbl_keys(servers or {})
       vim.list_extend(ensure_installed, {
-        -- You can add other tools here that you want Mason to install
+        -- Mason package names (mapped via mason-lspconfig when names differ)
+        'angular-language-server',
+        'html-lsp',
+        'css-lsp',
+        'typescript-language-server', -- used by typescript-tools.nvim
       })
 
       require('mason-tool-installer').setup { ensure_installed = ensure_installed }
 
       for name, server in pairs(servers) do
-        vim.lsp.config(name, server)
-        vim.lsp.enable(name)
+        -- Skip pure tools that are not LSP servers
+        if name ~= 'stylua' and name ~= 'prettierd' then
+          vim.lsp.config(name, server)
+          vim.lsp.enable(name)
+        end
       end
     end,
   },
@@ -923,11 +975,19 @@ require('lazy').setup({
       end,
       formatters_by_ft = {
         lua = { 'stylua' },
-        -- Conform can also run multiple formatters sequentially
-        -- python = { "isort", "black" },
-        --
-        -- You can use 'stop_after_first' to run the first available formatter from the list
-        -- javascript = { "prettierd", "prettier", stop_after_first = true },
+        javascript = { 'prettierd', 'prettier', stop_after_first = true },
+        javascriptreact = { 'prettierd', 'prettier', stop_after_first = true },
+        typescript = { 'prettierd', 'prettier', stop_after_first = true },
+        typescriptreact = { 'prettierd', 'prettier', stop_after_first = true },
+        html = { 'prettierd', 'prettier', stop_after_first = true },
+        htmlangular = { 'prettierd', 'prettier', stop_after_first = true },
+        css = { 'prettierd', 'prettier', stop_after_first = true },
+        scss = { 'prettierd', 'prettier', stop_after_first = true },
+        less = { 'prettierd', 'prettier', stop_after_first = true },
+        json = { 'prettierd', 'prettier', stop_after_first = true },
+        jsonc = { 'prettierd', 'prettier', stop_after_first = true },
+        yaml = { 'prettierd', 'prettier', stop_after_first = true },
+        markdown = { 'prettierd', 'prettier', stop_after_first = true },
       },
     },
   },
@@ -1247,7 +1307,25 @@ require('lazy').setup({
     -- [[ Configure Treesitter ]] See `:help nvim-treesitter-intro`
     config = function()
       -- ensure basic parser are installed
-      local parsers = { 'bash', 'c', 'diff', 'html', 'lua', 'luadoc', 'markdown', 'markdown_inline', 'query', 'vim', 'vimdoc' }
+      local parsers = {
+        'angular',
+        'bash',
+        'c',
+        'css',
+        'diff',
+        'html',
+        'javascript',
+        'json',
+        'lua',
+        'luadoc',
+        'markdown',
+        'markdown_inline',
+        'query',
+        'scss',
+        'typescript',
+        'vim',
+        'vimdoc',
+      }
       require('nvim-treesitter').install(parsers)
 
       ---@param buf integer
@@ -1310,7 +1388,20 @@ require('lazy').setup({
   {
     'pmizio/typescript-tools.nvim',
     dependencies = { 'nvim-lua/plenary.nvim', 'neovim/nvim-lspconfig' },
-    opts = {},
+    opts = {
+      on_attach = function(client, bufnr)
+        -- In Angular projects, prefer angularls for rename (template-aware).
+        local root = vim.fs.root(bufnr, { 'angular.json', 'nx.json' })
+        if root then client.server_capabilities.renameProvider = false end
+      end,
+      settings = {
+        -- Keep tsserver focused; Angular templates are handled by angularls.
+        tsserver_file_preferences = {
+          includeInlayParameterNameHints = 'all',
+          includeCompletionsForModuleExports = true,
+        },
+      },
+    },
   },
 
   {
