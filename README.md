@@ -114,7 +114,7 @@ Leader key: `Space`.
 | `<leader>o` | Open Oil |
 | `<leader>r` | Open Ranger |
 | `<leader>a` | Add file to Harpoon |
-| `{count}<leader>a` | Assign file to Harpoon slot |
+| `<leader><leader>1` … `<leader><leader>9` | Assign file to Harpoon slot 1–9 |
 | `<leader>1` … `<leader>0` | Select Harpoon slots 1–10 |
 | `<leader>H` | Open Harpoon menu |
 | `<leader>\` | Toggle horizontal terminal |
@@ -133,7 +133,7 @@ Leader key: `Space`.
 | `<leader>sc` | Search commands |
 | `<leader>s.` | Search open buffers |
 | `<leader>sr` | Resume previous search |
-| `<leader><leader>` | Recent files in current project |
+| `<leader>fr` | Recent files in current project |
 | `<leader>sz` | Recent files across projects |
 | `<leader>/` | Fuzzy search current buffer |
 | `<leader>s/` | Grep open files |

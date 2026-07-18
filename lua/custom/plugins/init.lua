@@ -40,15 +40,13 @@ return {
       local harpoon = require 'harpoon'
       harpoon:setup()
 
-      vim.keymap.set('n', '<leader>a', function()
-        local slot = vim.v.count
-        if slot > 0 then
-          harpoon:list():replace_at(slot)
-        else
-          harpoon:list():add()
-        end
-      end, { desc = 'Harpoon [A]dd/assign file' })
+      vim.keymap.set('n', '<leader>a', function() harpoon:list():add() end, { desc = 'Harpoon [A]dd file' })
       vim.keymap.set('n', '<leader>H', function() harpoon.ui:toggle_quick_menu(harpoon:list()) end, { desc = 'Open [H]arpoon menu' })
+
+      for i = 1, 9 do
+        local slot = i
+        vim.keymap.set('n', '<leader><leader>' .. slot, function() harpoon:list():replace_at(slot) end, { desc = 'Assign file to Harpoon slot ' .. slot })
+      end
 
       for i = 1, 10 do
         local slot = i

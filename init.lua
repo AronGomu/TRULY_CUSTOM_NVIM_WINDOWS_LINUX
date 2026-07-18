@@ -705,7 +705,7 @@ require('lazy').setup({
       end, { desc = '[S]earch by [G]rep' })
       vim.keymap.set('n', '<leader>sd', builtin.diagnostics, { desc = '[S]earch [D]iagnostics' })
       vim.keymap.set('n', '<leader>sr', builtin.resume, { desc = '[S]earch [R]esume' })
-      vim.keymap.set('n', '<leader><leader>', project_recent_files, { desc = '[ ] Search Recent Project Files' })
+      vim.keymap.set('n', '<leader>fr', project_recent_files, { desc = '[F]iles [R]ecent Project' })
       vim.keymap.set('n', '<leader>sz', function()
         builtin.oldfiles { path_display = function(_, path) return smart_truncate_path(_, path, true) end }
       end, { desc = '[S]earch Recent Files from all projects' })
