@@ -1,6 +1,6 @@
 -- Adds git related signs to the gutter, as well as utilities for managing changes
--- NOTE: gitsigns is already included in init.lua but contains only the base
--- config. This will add also the recommended keymaps.
+-- NOTE: gitsigns base config lives in lua/plugins/editing.lua.
+-- Import this module to add recommended keymaps.
 
 ---@module 'lazy'
 ---@type LazySpec

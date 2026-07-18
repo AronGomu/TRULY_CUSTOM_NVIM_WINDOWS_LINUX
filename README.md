@@ -4,6 +4,7 @@ Personal Neovim config built from [kickstart.nvim](https://github.com/nvim-lua/k
 
 ## Highlights
 
+- Modular `config/`, `plugins/`, `utils/` Lua tree
 - `lazy.nvim` plugin mgmt with automatic bootstrap
 - Top bar showing absolute file paths with `$HOME` shortened to `~/`
 - Transparent `onedark` default theme
@@ -149,6 +150,19 @@ Leader key: `Space`.
 | `<leader>sR` | Visual | Replace visual selection |
 | `<leader>sW` | Normal | Replace word under cursor |
 
+### Git
+
+| Key | Action |
+|---|---|
+| `<leader>gb` | Open blame |
+| `<leader>go` | Open file/folder in Git remote |
+| `<leader>gp` | Open current branch pull request |
+| `<leader>gn` | Create pull request |
+| `<leader>gd` | Diff against index |
+| `<leader>gD` | Close diff |
+| `<leader>gr` | Revert to commit |
+| `<leader>gR` | Revert current file to commit |
+
 ### LSP
 
 | Key | Action |
@@ -163,6 +177,16 @@ Leader key: `Space`.
 | `gO` | Document symbols |
 | `gW` | Workspace symbols |
 | `K` / `KK` | Show / focus hover docs |
+
+### Completion
+
+| Key | Action |
+|---|---|
+| `<C-Space>` | Open completion menu or docs |
+| `<C-y>` | Accept completion |
+| `<C-n>` / `<C-p>` | Select next / previous item |
+| `<C-e>` | Close completion menu |
+| `<C-k>` | Toggle signature help |
 
 Use `which-key` for discoverable key groups.
 
@@ -220,11 +244,28 @@ Missing supported parsers install when matching files open.
 
 ```text
 .
-├── init.lua                       # options, UI, keymaps, plugin specs, tooling
-├── lua/custom/plugins/init.lua    # Grug Far, Harpoon, Oil, Toggleterm
-├── lua/kickstart/plugins/         # optional Kickstart plugin examples
+├── init.lua                       # ordered config entrypoint
+├── lua/
+│   ├── config/
+│   │   ├── options.lua            # globals, editor opts, diagnostics
+│   │   ├── keymaps.lua            # global keymaps + commands
+│   │   ├── autocmds.lua           # global autocmds
+│   │   ├── filetypes.lua          # custom filetype detection
+│   │   ├── topbar.lua             # path display, theme state, highlights
+│   │   └── lazy.lua               # lazy.nvim bootstrap + plugin import
+│   ├── plugins/
+│   │   ├── completion.lua         # blink.cmp + snippets
+│   │   ├── editing.lua            # formatting, Git, search/replace, notes
+│   │   ├── lsp.lua                # LSP, Mason, TypeScript, diagnostics
+│   │   ├── navigation.lua         # Neo-tree, Telescope, Harpoon, Oil
+│   │   ├── treesitter.lua         # parser/highlight config
+│   │   └── ui.lua                 # themes, statusline, which-key, cursor
+│   ├── utils/path.lua             # shared canonical-path helpers
+│   └── kickstart/plugins/         # optional Kickstart plugin examples
 └── .stylua.toml                   # Lua formatting rules
 ```
+
+`init.lua` loads core modules in dependency order. `config/lazy.lua` imports every domain spec from `plugins/`; shared path behavior lives in `utils/path.lua`.
 
 ## Maintenance
 
