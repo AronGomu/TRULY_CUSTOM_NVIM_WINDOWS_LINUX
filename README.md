@@ -89,6 +89,8 @@ Angular workspaces receive:
 - Prettier/Prettierd formatting
 - Angular, HTML, CSS, JavaScript, SCSS, TypeScript Tree-sitter parsers
 
+Angular template buffers keep the `htmlangular` filetype locally, but Angular LSP receives the standard `html` language ID.
+
 ## Keymaps
 
 Leader key: `Space`.

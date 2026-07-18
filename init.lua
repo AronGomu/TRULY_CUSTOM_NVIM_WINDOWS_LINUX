@@ -859,6 +859,7 @@ require('lazy').setup({
         angularls = {
           capabilities = capabilities,
           filetypes = { 'typescript', 'html', 'typescriptreact', 'htmlangular' },
+          get_language_id = function(_, filetype) return filetype == 'htmlangular' and 'html' or filetype end,
         },
 
         -- General HTML; Angular templates are handled exclusively by angularls.
