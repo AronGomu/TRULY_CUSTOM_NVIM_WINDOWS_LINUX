@@ -33,10 +33,7 @@ vim.o.confirm = true
 vim.opt.shada = "'20,<50,s10,h"
 vim.opt_local.conceallevel = 2
 
--- Show file paths relative to the project; keep outside paths absolute.
-local topbar_root = vim.fs.root(launch_dir, '.git') or launch_dir
-topbar_root = vim.uv.fs_realpath(topbar_root) or vim.fs.normalize(topbar_root)
-
+-- Show absolute file paths; shorten the home directory prefix to ~/.
 local function shorten_topbar_path(path)
   -- Account for the spaces surrounding the path in 'tabline'.
   local available_width = math.max(vim.o.columns - 2, 1)
@@ -93,8 +90,7 @@ _G.nvim_topbar_path = function()
   if path == '' then return '[No File Selected]' end
 
   path = vim.uv.fs_realpath(path) or vim.fs.normalize(path)
-  local separator = package.config:sub(1, 1)
-  if path:sub(1, #topbar_root + 1) == topbar_root .. separator then path = path:sub(#topbar_root + 2) end
+  path = vim.fn.fnamemodify(path, ':~')
 
   return shorten_topbar_path(path)
 end
