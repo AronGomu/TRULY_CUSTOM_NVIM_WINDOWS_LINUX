@@ -1,3 +1,5 @@
+local is_windows = require('utils.platform').is_windows
+
 ---@module 'lazy'
 ---@type LazySpec
 return {
@@ -127,6 +129,23 @@ return {
 
   {
     'dinhhuy258/git.nvim',
-    config = function() require('git').setup() end,
+    config = function()
+      if not is_windows then
+        require('git').setup()
+        return
+      end
+
+      require('git').setup {
+        target_branch = function()
+          local result = vim.system({ 'git', 'symbolic-ref', '--quiet', '--short', 'refs/remotes/origin/HEAD' }, { text = true }):wait()
+          if result.code == 0 then
+            local branch = vim.trim(result.stdout or ''):gsub('^origin/', '')
+            if branch ~= '' then return branch end
+          end
+
+          return 'master'
+        end,
+      }
+    end,
   },
 }

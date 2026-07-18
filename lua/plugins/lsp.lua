@@ -110,6 +110,10 @@ return {
         angularls = {
           capabilities = capabilities,
           filetypes = { 'typescript', 'html', 'typescriptreact', 'htmlangular' },
+          root_dir = function(bufnr, on_dir)
+            local root = vim.fs.root(bufnr, { 'angular.json', 'nx.json' })
+            if root then on_dir(root) end
+          end,
           get_language_id = function(_, filetype) return filetype == 'htmlangular' and 'html' or filetype end,
         },
 

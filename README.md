@@ -25,17 +25,23 @@ Personal Neovim config built from [kickstart.nvim](https://github.com/nvim-lua/k
 
 ## Requirements
 
-- Neovim 0.11+
+- Neovim 0.11.x (`nvim-treesitter`'s compatibility branch does not support Neovim 0.12)
 - Git
-- `make` + C compiler
-- `unzip`
 - [ripgrep](https://github.com/BurntSushi/ripgrep)
 - [fd](https://github.com/sharkdp/fd)
-- [tree-sitter CLI](https://github.com/tree-sitter/tree-sitter/tree/master/crates/cli)
+- [tree-sitter CLI](https://github.com/tree-sitter/tree-sitter/tree/master/crates/cli) 0.25.x
 - Clipboard provider: `xclip`, `xsel`, `wl-clipboard`, `win32yank`, or OS equivalent
 - Nerd Font
 - Node.js + npm for TypeScript, Angular, HTML/CSS LSPs, Prettier
-- Optional: `ranger` for `<leader>r`
+
+## Platform behavior
+
+| Platform | `<leader>r` | Terminal | Native build | Archive tool |
+|---|---|---|---|---|
+| Linux/macOS | [Yazi](https://yazi-rs.github.io/) | User shell | C compiler + `make` | `unzip` |
+| Windows 11 | [Yazi](https://yazi-rs.github.io/) | PowerShell 7 | C compiler + `mingw32-make` | `7z` |
+
+Install tools from the matching row before first launch. Shared plugins and keymaps remain identical across platforms.
 
 ## Install
 
@@ -115,7 +121,7 @@ Leader key: `Space`.
 | `<leader>t` | Toggle project-rooted Neo-tree |
 | `-` | Open parent dir in Oil |
 | `<leader>o` | Open Oil |
-| `<leader>r` | Open Ranger |
+| `<leader>r` | Open Ranger (Linux/macOS) or Yazi (Windows) |
 | `<leader>yp` | Copy absolute file path to system clipboard |
 | `<leader>a` | Add file to Harpoon |
 | `<leader><leader>1` … `<leader><leader>9` | Assign file to Harpoon slot 1–9 |
@@ -244,6 +250,7 @@ Missing supported parsers install when matching files open.
 
 ```text
 .
+├── bin/pwsh.cmd                   # Windows launcher for PowerShell App Execution Alias
 ├── init.lua                       # ordered config entrypoint
 ├── lua/
 │   ├── config/
@@ -260,7 +267,9 @@ Missing supported parsers install when matching files open.
 │   │   ├── navigation.lua         # Neo-tree, Telescope, Harpoon, Oil
 │   │   ├── treesitter.lua         # parser/highlight config
 │   │   └── ui.lua                 # themes, statusline, which-key, cursor
-│   ├── utils/path.lua             # shared canonical-path helpers
+│   ├── utils/
+│   │   ├── path.lua               # shared canonical-path helpers
+│   │   └── platform.lua           # OS-specific commands and feature gates
 │   └── kickstart/plugins/         # optional Kickstart plugin examples
 └── .stylua.toml                   # Lua formatting rules
 ```

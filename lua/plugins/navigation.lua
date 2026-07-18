@@ -1,5 +1,25 @@
 local launch_dir = require('utils.path').launch_dir
 local theme_picker = require('config.topbar').theme_picker
+local platform = require 'utils.platform'
+local is_windows = platform.is_windows
+local make_command = platform.make
+local terminal_shell = is_windows and vim.fn.shellescape(vim.fs.joinpath(vim.fn.stdpath 'config', 'bin', 'pwsh.cmd')) or vim.o.shell
+
+local function find_windows_realpath()
+  if not is_windows then return end
+
+  local direct = vim.fn.exepath 'realpath'
+  if direct ~= '' then return direct end
+
+  local git_dir = vim.fs.dirname(vim.fn.exepath 'git')
+  local candidates = {
+    vim.fs.normalize(vim.fs.joinpath(git_dir, '..', 'usr', 'bin', 'realpath.exe')),
+    vim.fs.normalize(vim.fs.joinpath(git_dir, '..', '..', 'usr', 'bin', 'realpath.exe')),
+  }
+  for _, candidate in ipairs(candidates) do
+    if vim.fn.executable(candidate) == 1 then return candidate end
+  end
+end
 
 ---@module 'lazy'
 ---@type LazySpec
@@ -186,11 +206,11 @@ return {
 
         -- `build` is used to run some command when the plugin is installed/updated.
         -- This is only run then, not every time Neovim starts up.
-        build = 'make',
+        build = make_command,
 
         -- `cond` is a condition used to determine whether this plugin should be
         -- installed and loaded.
-        cond = function() return vim.fn.executable 'make' == 1 end,
+        cond = function() return vim.fn.executable(make_command) == 1 end,
       },
       { 'nvim-telescope/telescope-ui-select.nvim' },
 
@@ -431,13 +451,19 @@ return {
   },
 
   {
-    'kelly-lin/ranger.nvim',
-    config = function()
-      require('ranger-nvim').setup { replace_netrw = false }
-      vim.api.nvim_set_keymap('n', '<leader>r', '', {
-        noremap = true,
-        callback = function() require('ranger-nvim').open(true) end,
-      })
+    'mikavilpas/yazi.nvim',
+    version = '*',
+    dependencies = { { 'nvim-lua/plenary.nvim', lazy = true } },
+    keys = {
+      { '<leader>r', '<cmd>Yazi<CR>', desc = 'Open Yazi file manager' },
+    },
+    opts = function()
+      local windows_realpath = find_windows_realpath()
+      return {
+        open_for_directories = false,
+        integrations = windows_realpath and { resolve_relative_path_application = windows_realpath } or nil,
+        keymaps = not windows_realpath and { copy_relative_path_to_selected_files = false } or nil,
+      }
     end,
   },
 
@@ -495,6 +521,7 @@ return {
     opts = {
       open_mapping = [[<leader>\]],
       direction = 'horizontal',
+      shell = terminal_shell,
       size = function() return math.floor(vim.o.lines / 2) end,
       insert_mappings = false,
       terminal_mappings = true,
