@@ -115,6 +115,7 @@ Leader key: `Space`.
 | `-` | Open parent dir in Oil |
 | `<leader>o` | Open Oil |
 | `<leader>r` | Open Ranger |
+| `<leader>yp` | Copy absolute file path to system clipboard |
 | `<leader>a` | Add file to Harpoon |
 | `<leader><leader>1` … `<leader><leader>9` | Assign file to Harpoon slot 1–9 |
 | `<leader>1` … `<leader>0` | Select Harpoon slots 1–10 |

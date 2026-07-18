@@ -235,6 +235,18 @@ vim.api.nvim_create_user_command('Q', 'quitall', { desc = 'Quit Neovim' })
 
 vim.keymap.set('n', '<Esc>', '<cmd>nohlsearch<CR>')
 
+vim.keymap.set('n', '<leader>yp', function()
+  local path = vim.api.nvim_buf_get_name(0)
+  if path == '' then
+    vim.notify('Current buffer has no file path', vim.log.levels.WARN)
+    return
+  end
+
+  path = vim.uv.fs_realpath(path) or vim.fs.normalize(vim.fn.fnamemodify(path, ':p'))
+  vim.fn.setreg('+', path)
+  vim.notify('Copied path: ' .. path)
+end, { desc = '[Y]ank absolute file [P]ath' })
+
 vim.diagnostic.config {
   update_in_insert = false,
   severity_sort = true,
