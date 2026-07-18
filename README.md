@@ -98,7 +98,7 @@ Leader key: `Space`.
 | Key | Action |
 |---|---|
 | `<Esc>` | Clear search highlight |
-| `<Esc><Esc>` | Exit terminal mode |
+| `<Esc><Esc>` | Exit terminal mode or return from focused LSP docs |
 | `<C-h/j/k/l>` | Move across splits |
 | `<leader>q` | Open diagnostic location list |
 | `<leader>f` | Format current buffer |
@@ -159,6 +159,7 @@ Leader key: `Space`.
 | `gra` | Code action |
 | `gO` | Document symbols |
 | `gW` | Workspace symbols |
+| `K` / `KK` | Show / focus hover docs |
 
 Use `which-key` for discoverable key groups.
 
@@ -194,7 +195,7 @@ Mason installs/configures:
 - `cssls`
 - TypeScript Language Server for `typescript-tools.nvim`
 
-Completion uses `blink.cmp` with LSP, path, LuaSnip sources, signature help.
+Completion uses `blink.cmp` with LSP, path, LuaSnip sources, signature help. Suggestions show auto-import modules; docs open automatically.
 
 ### Formatting
 
