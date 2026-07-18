@@ -407,7 +407,36 @@ require('lazy').setup({
         vim.bo[preview_buf].bufhidden = 'wipe'
         vim.bo[preview_buf].buftype = 'nofile'
         vim.bo[preview_buf].modifiable = false
-        vim.bo[preview_buf].filetype = vim.filetype.match { filename = path } or ''
+        local filetype = vim.filetype.match { filename = path } or ''
+        vim.bo[preview_buf].filetype = filetype
+        vim.bo[preview_buf].syntax = filetype
+
+        local function start_treesitter()
+          local language = vim.treesitter.language.get_lang(filetype)
+          if not language then return end
+
+          local function attach()
+            if not vim.api.nvim_buf_is_valid(preview_buf) then return end
+            if not vim.treesitter.language.add(language) then return end
+            pcall(vim.treesitter.start, preview_buf, language)
+          end
+
+          local ok, treesitter = pcall(require, 'nvim-treesitter')
+          if ok then
+            local installed = treesitter.get_installed 'parsers'
+            if vim.tbl_contains(installed, language) then
+              attach()
+              return
+            end
+
+            if vim.tbl_contains(treesitter.get_available(), language) then
+              treesitter.install(language):await(attach)
+              return
+            end
+          end
+
+          attach()
+        end
 
         local tree_width = vim.api.nvim_win_get_width(state.winid)
         local width = math.min(100, vim.o.columns - tree_width - 4)
@@ -429,7 +458,7 @@ require('lazy').setup({
         vim.wo[preview_win].number = true
         preview_path = path
 
-        pcall(vim.treesitter.start, preview_buf)
+        vim.schedule(start_treesitter)
       end
 
       require('neo-tree').setup {
