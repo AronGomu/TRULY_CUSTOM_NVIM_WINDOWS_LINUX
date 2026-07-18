@@ -1454,6 +1454,9 @@ require('lazy').setup({
     'dinhhuy258/git.nvim',
     config = function() require('git').setup() end,
   },
+
+  -- Custom user plugins (see lua/custom/plugins/)
+  { import = 'custom.plugins' },
 }, { ---@diagnostic disable-line: missing-fields
   ui = {
     icons = vim.g.have_nerd_font and {} or {
@@ -1473,4 +1476,3 @@ require('lazy').setup({
     },
   },
 })
-
