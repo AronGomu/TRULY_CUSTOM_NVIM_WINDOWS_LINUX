@@ -9,8 +9,10 @@ vim.g.mapleader = ' '
 vim.g.maplocalleader = ' '
 vim.g.have_nerd_font = true
 vim.o.number = true
+vim.o.relativenumber = true
 vim.o.mouse = 'a'
 vim.o.showmode = false
+vim.opt.shortmess:append 'I'
 vim.o.breakindent = true
 vim.o.undofile = true
 vim.o.ignorecase = true
@@ -31,10 +33,200 @@ vim.o.confirm = true
 vim.opt.shada = "'20,<50,s10,h"
 vim.opt_local.conceallevel = 2
 
+-- Show file paths relative to the project; keep outside paths absolute.
+local topbar_root = vim.fs.root(launch_dir, '.git') or launch_dir
+topbar_root = vim.uv.fs_realpath(topbar_root) or vim.fs.normalize(topbar_root)
+
+local function shorten_topbar_path(path)
+  -- Account for the spaces surrounding the path in 'tabline'.
+  local available_width = math.max(vim.o.columns - 2, 1)
+  if vim.fn.strdisplaywidth(path) <= available_width then return path end
+
+  local separator = package.config:sub(1, 1)
+  local prefix = path:sub(1, 1) == separator and separator or ''
+  local path_without_prefix = prefix == '' and path or path:sub(2)
+  local parts = vim.split(path_without_prefix, separator, { plain = true })
+  local shortened = path
+
+  -- Shorten folders from left to right until the path fits. Keep the filename intact.
+  for index = 1, #parts - 1 do
+    local abbreviation = vim.fn.strcharpart(parts[index], 0, 3) .. '...'
+    if vim.fn.strdisplaywidth(abbreviation) < vim.fn.strdisplaywidth(parts[index]) then parts[index] = abbreviation end
+
+    shortened = prefix .. table.concat(parts, separator)
+    if vim.fn.strdisplaywidth(shortened) <= available_width then return shortened end
+  end
+
+  return shortened
+end
+
+local theme_state_path = vim.fn.stdpath('state') .. '/selected-theme'
+
+local function read_persisted_theme()
+  local readable, lines = pcall(vim.fn.readfile, theme_state_path)
+  if readable and lines[1] ~= nil and lines[1] ~= '' then return lines[1] end
+end
+
+local persisted_theme = read_persisted_theme()
+
+local function persist_theme(theme)
+  if theme == nil or theme == '' then return end
+
+  vim.fn.mkdir(vim.fn.fnamemodify(theme_state_path, ':h'), 'p')
+  local written, result = pcall(vim.fn.writefile, { theme }, theme_state_path)
+  if not written or result == -1 then
+    vim.notify('Could not save theme selection', vim.log.levels.WARN, { title = 'Themes' })
+    return
+  end
+  persisted_theme = theme
+end
+
+local theme_picker = { active = false, selected = nil }
+
+_G.nvim_topbar_path = function()
+  if theme_picker.active then return 'Theme: ' .. (theme_picker.selected or vim.g.colors_name or 'default') end
+
+  local bufnr = vim.api.nvim_get_current_buf()
+  if vim.bo[bufnr].buftype ~= '' then return '' end
+
+  local path = vim.api.nvim_buf_get_name(bufnr)
+  if path == '' then return '[No File Selected]' end
+
+  path = vim.uv.fs_realpath(path) or vim.fs.normalize(path)
+  local separator = package.config:sub(1, 1)
+  if path:sub(1, #topbar_root + 1) == topbar_root .. separator then path = path:sub(#topbar_root + 2) end
+
+  return shorten_topbar_path(path)
+end
+
+vim.o.showtabline = 2
+vim.o.tabline = '%#TabLineFill# %{v:lua.nvim_topbar_path()} '
+
+local function highlight_color(groups, attribute, fallback)
+  for _, group in ipairs(groups) do
+    local value = vim.api.nvim_get_hl(0, { name = group, link = false })[attribute]
+    if value ~= nil then return value end
+  end
+  return fallback
+end
+
+local function preserve_transparent_theme()
+  local dark_theme = vim.o.background == 'dark'
+  local fallback_bg = dark_theme and 0x282c34 or 0xf0f0f0
+  local fallback_fg = dark_theme and 0xabb2bf or 0x383a42
+  local normal_bg = highlight_color({ 'Normal' }, 'bg', highlight_color({ 'MiniStatuslineModeNormal' }, 'fg', fallback_bg))
+  local normal_fg = highlight_color({ 'Normal' }, 'fg', fallback_fg)
+  local muted_fg = highlight_color({ 'Comment', 'LineNr' }, 'fg', normal_fg)
+  local filename_bg = highlight_color({ 'StatusLine', 'StatusLineNC', 'Pmenu' }, 'bg', normal_bg)
+  local info_bg = highlight_color({ 'MiniStatuslineDevinfo', 'Pmenu', 'NormalFloat' }, 'bg', filename_bg)
+
+  if info_bg == filename_bg then info_bg = highlight_color({ 'CursorLine', 'Visual' }, 'bg', filename_bg) end
+
+  local accents = {
+    Normal = highlight_color({ 'MiniStatuslineModeNormal' }, 'bg', highlight_color({ 'String', 'DiagnosticOk' }, 'fg', 0x98c379)),
+    Insert = highlight_color({ 'MiniStatuslineModeInsert' }, 'bg', highlight_color({ 'Function', 'DiagnosticInfo' }, 'fg', 0x61afef)),
+    Visual = highlight_color({ 'MiniStatuslineModeVisual' }, 'bg', highlight_color({ 'Keyword', 'Statement' }, 'fg', 0xc678dd)),
+    Replace = highlight_color({ 'MiniStatuslineModeReplace' }, 'bg', highlight_color({ 'DiagnosticError', 'ErrorMsg' }, 'fg', 0xe06c75)),
+    Command = highlight_color({ 'MiniStatuslineModeCommand' }, 'bg', highlight_color({ 'DiagnosticWarn', 'WarningMsg' }, 'fg', 0xd19a66)),
+    Other = highlight_color({ 'MiniStatuslineModeOther' }, 'bg', highlight_color({ 'DiagnosticHint', 'Special' }, 'fg', 0x56b6c2)),
+  }
+  local git_accent = highlight_color({ 'MiniStatuslineGit' }, 'bg', highlight_color({ 'DiagnosticWarn', 'Character' }, 'fg', 0xe5c07b))
+
+  for _, group in ipairs {
+    'Normal',
+    'NormalNC',
+    'EndOfBuffer',
+    'SignColumn',
+    'FoldColumn',
+    'CursorLine',
+    'CursorColumn',
+    'ColorColumn',
+    'LineNr',
+    'CursorLineNr',
+  } do
+    local highlight = vim.api.nvim_get_hl(0, { name = group, link = false })
+    if next(highlight) ~= nil then
+      highlight.bg = nil
+      vim.api.nvim_set_hl(0, group, highlight)
+    end
+  end
+
+  vim.api.nvim_set_hl(0, 'StatusLine', { fg = normal_fg, bg = filename_bg })
+  vim.api.nvim_set_hl(0, 'StatusLineNC', { fg = muted_fg, bg = filename_bg })
+  vim.api.nvim_set_hl(0, 'MiniStatuslineGit', { fg = normal_bg, bg = git_accent, bold = true })
+  vim.api.nvim_set_hl(0, 'MiniStatuslineGitSep', { fg = git_accent, bg = info_bg })
+  vim.api.nvim_set_hl(0, 'MiniStatuslineGitSepFilename', { fg = git_accent, bg = filename_bg })
+  vim.api.nvim_set_hl(0, 'MiniStatuslineInfoSep', { fg = info_bg, bg = filename_bg })
+  vim.api.nvim_set_hl(0, 'MiniStatuslineDevinfo', { fg = normal_fg, bg = info_bg })
+  vim.api.nvim_set_hl(0, 'MiniStatuslineFilename', { fg = normal_fg, bg = filename_bg })
+  vim.api.nvim_set_hl(0, 'MiniStatuslineFileinfo', { fg = normal_fg, bg = info_bg })
+  vim.api.nvim_set_hl(0, 'MiniStatuslineInactive', { fg = muted_fg, bg = filename_bg })
+
+  for mode, accent in pairs(accents) do
+    local group = 'MiniStatuslineMode' .. mode
+    vim.api.nvim_set_hl(0, group, { fg = normal_bg, bg = accent, bold = true })
+    vim.api.nvim_set_hl(0, group .. 'GitSep', { fg = accent, bg = git_accent })
+    vim.api.nvim_set_hl(0, group .. 'Sep', { fg = accent, bg = info_bg })
+    vim.api.nvim_set_hl(0, group .. 'SepFilename', { fg = accent, bg = filename_bg })
+  end
+end
+
+vim.api.nvim_create_autocmd('ColorScheme', {
+  group = vim.api.nvim_create_augroup('PreserveTransparentTheme', { clear = true }),
+  desc = 'Keep editor transparency and Powerline colors when switching themes',
+  callback = function(args)
+    if theme_picker.active then
+      theme_picker.selected = args.match
+      vim.cmd.redrawtabline()
+    end
+    vim.schedule(preserve_transparent_theme)
+  end,
+})
+
+vim.api.nvim_create_autocmd('FileType', {
+  group = vim.api.nvim_create_augroup('ThemePickerTopbar', { clear = true }),
+  pattern = 'TelescopePrompt',
+  desc = 'Restore the filepath in the top bar after closing the theme picker',
+  callback = function(args)
+    if not theme_picker.active then return end
+
+    vim.api.nvim_create_autocmd('BufWipeout', {
+      buffer = args.buf,
+      once = true,
+      callback = function()
+        theme_picker.active = false
+        theme_picker.selected = nil
+        vim.schedule(function()
+          persist_theme(vim.g.colors_name)
+          vim.cmd.redrawtabline()
+        end)
+      end,
+    })
+  end,
+})
+
+if persisted_theme ~= nil then
+  vim.api.nvim_create_autocmd('VimEnter', {
+    group = vim.api.nvim_create_augroup('PersistedTheme', { clear = true }),
+    once = true,
+    desc = 'Restore the selected colorscheme after plugins load',
+    callback = function()
+      vim.schedule(function()
+        local applied = pcall(vim.cmd.colorscheme, persisted_theme)
+        if not applied then
+          vim.notify('Saved theme is no longer available: ' .. persisted_theme, vim.log.levels.WARN, { title = 'Themes' })
+        end
+      end)
+    end,
+  })
+end
+
 -- Sync clipboard between OS and Neovim.
 vim.schedule(function() vim.o.clipboard = 'unnamedplus' end)
 
 -- [[ Basic Keymaps ]]
+vim.api.nvim_create_user_command('Q', 'quitall', { desc = 'Quit Neovim' })
+
 vim.keymap.set('n', '<Esc>', '<cmd>nohlsearch<CR>')
 
 vim.diagnostic.config {
@@ -434,23 +626,68 @@ require('lazy').setup({
 
       -- See `:help telescope.builtin`
       local builtin = require 'telescope.builtin'
+      vim.api.nvim_create_user_command('Themes', function()
+        local colors = vim.fn.getcompletion('', 'color')
+        local longest_name = 0
+        for _, color in ipairs(colors) do
+          longest_name = math.max(longest_name, vim.fn.strdisplaywidth(color))
+        end
+
+        local picker_width = math.min(vim.o.columns - 2, longest_name + 6)
+        local picker_height = math.min(vim.o.lines - 2, #colors + 4)
+        local options = require('telescope.themes').get_dropdown {
+          colors = colors,
+          enable_preview = true,
+          prompt_title = false,
+          results_title = false,
+          preview_title = false,
+          prompt_prefix = '  ',
+          selection_caret = '  ',
+          entry_prefix = '  ',
+          layout_config = {
+            width = picker_width,
+            height = picker_height,
+            prompt_position = 'top',
+            preview_cutoff = math.huge,
+          },
+        }
+
+        theme_picker.active = true
+        theme_picker.selected = vim.g.colors_name or 'default'
+        vim.cmd.redrawtabline()
+
+        local opened, error_message = pcall(builtin.colorscheme, options)
+        if not opened then
+          theme_picker.active = false
+          theme_picker.selected = nil
+          vim.cmd.redrawtabline()
+          error(error_message)
+        end
+      end, { desc = 'Preview and select an installed colorscheme', force = true })
+      -- User commands must start uppercase, so expose the requested lowercase spelling as an exact command-line alias.
+      vim.cmd [[cnoreabbrev <expr> themes getcmdtype() ==# ':' && getcmdline() ==# 'themes' ? 'Themes' : 'themes']]
+
+      local search_layout = {
+        layout_strategy = 'vertical',
+        layout_config = {
+          width = 0.9,
+          height = 0.9,
+          prompt_position = 'bottom',
+          preview_cutoff = 1,
+          -- Leave five result rows below the preview (plus the prompt and borders).
+          preview_height = function(_, _, height) return math.max(1, height - 12) end,
+        },
+      }
+
       vim.keymap.set('n', '<leader>sh', builtin.help_tags, { desc = '[S]earch [H]elp' })
       vim.keymap.set('n', '<leader>sk', builtin.keymaps, { desc = '[S]earch [K]eymaps' })
-      vim.keymap.set('n', '<leader>sf', builtin.find_files, { desc = '[S]earch [F]iles' })
+      vim.keymap.set('n', '<leader>sf', function() builtin.find_files(search_layout) end, { desc = '[S]earch [F]iles' })
       vim.keymap.set('n', '<leader>ss', builtin.builtin, { desc = '[S]earch [S]elect Telescope' })
       vim.keymap.set({ 'n', 'v' }, '<leader>sw', builtin.grep_string, { desc = '[S]earch current [W]ord' })
       vim.keymap.set('n', '<leader>sg', function()
-        builtin.live_grep {
+        builtin.live_grep(vim.tbl_deep_extend('force', search_layout, {
           path_display = function(_, path) return smart_truncate_path(_, path, true) end,
-
-          layout_strategy = 'horizontal',
-          layout_config = {
-            width = 0.9,
-            horizontal = {
-              preview_width = 0.65,
-            },
-          },
-        }
+        }))
       end, { desc = '[S]earch by [G]rep' })
       vim.keymap.set('n', '<leader>sd', builtin.diagnostics, { desc = '[S]earch [D]iagnostics' })
       vim.keymap.set('n', '<leader>sr', builtin.resume, { desc = '[S]earch [R]esume' })
@@ -784,9 +1021,37 @@ require('lazy').setup({
 
           StatusLine = { fg = '$fg', bg = '$bg1' }, -- Active window statusline background.
           StatusLineNC = { fg = '$grey', bg = '$bg1' }, -- Inactive window statusline background.
-          MiniStatuslineDevinfo = { fg = '$fg', bg = '$bg1' }, -- mini.statusline git/diagnostic/LSP section.
+          MiniStatuslineModeNormal = { fg = '$bg0', bg = '$green', fmt = 'bold' },
+          MiniStatuslineModeInsert = { fg = '$bg0', bg = '$blue', fmt = 'bold' },
+          MiniStatuslineModeVisual = { fg = '$bg0', bg = '$purple', fmt = 'bold' },
+          MiniStatuslineModeReplace = { fg = '$bg0', bg = '$red', fmt = 'bold' },
+          MiniStatuslineModeCommand = { fg = '$bg0', bg = '$orange', fmt = 'bold' },
+          MiniStatuslineModeOther = { fg = '$bg0', bg = '$cyan', fmt = 'bold' },
+          MiniStatuslineGit = { fg = '$bg0', bg = '$yellow', fmt = 'bold' },
+          MiniStatuslineModeNormalGitSep = { fg = '$green', bg = '$yellow' },
+          MiniStatuslineModeInsertGitSep = { fg = '$blue', bg = '$yellow' },
+          MiniStatuslineModeVisualGitSep = { fg = '$purple', bg = '$yellow' },
+          MiniStatuslineModeReplaceGitSep = { fg = '$red', bg = '$yellow' },
+          MiniStatuslineModeCommandGitSep = { fg = '$orange', bg = '$yellow' },
+          MiniStatuslineModeOtherGitSep = { fg = '$cyan', bg = '$yellow' },
+          MiniStatuslineGitSep = { fg = '$yellow', bg = '$bg2' },
+          MiniStatuslineGitSepFilename = { fg = '$yellow', bg = '$bg1' },
+          MiniStatuslineModeNormalSep = { fg = '$green', bg = '$bg2' },
+          MiniStatuslineModeInsertSep = { fg = '$blue', bg = '$bg2' },
+          MiniStatuslineModeVisualSep = { fg = '$purple', bg = '$bg2' },
+          MiniStatuslineModeReplaceSep = { fg = '$red', bg = '$bg2' },
+          MiniStatuslineModeCommandSep = { fg = '$orange', bg = '$bg2' },
+          MiniStatuslineModeOtherSep = { fg = '$cyan', bg = '$bg2' },
+          MiniStatuslineModeNormalSepFilename = { fg = '$green', bg = '$bg1' },
+          MiniStatuslineModeInsertSepFilename = { fg = '$blue', bg = '$bg1' },
+          MiniStatuslineModeVisualSepFilename = { fg = '$purple', bg = '$bg1' },
+          MiniStatuslineModeReplaceSepFilename = { fg = '$red', bg = '$bg1' },
+          MiniStatuslineModeCommandSepFilename = { fg = '$orange', bg = '$bg1' },
+          MiniStatuslineModeOtherSepFilename = { fg = '$cyan', bg = '$bg1' },
+          MiniStatuslineInfoSep = { fg = '$bg2', bg = '$bg1' },
+          MiniStatuslineDevinfo = { fg = '$fg', bg = '$bg2' }, -- mini.statusline git/diagnostic/LSP section.
           MiniStatuslineFilename = { fg = '$fg', bg = '$bg1' }, -- mini.statusline filename section.
-          MiniStatuslineFileinfo = { fg = '$fg', bg = '$bg1' }, -- mini.statusline filetype/encoding section.
+          MiniStatuslineFileinfo = { fg = '$fg', bg = '$bg2' }, -- mini.statusline filetype/encoding section.
           MiniStatuslineInactive = { fg = '$grey', bg = '$bg1' }, -- mini.statusline when the window is inactive.
         },
       }
@@ -794,19 +1059,31 @@ require('lazy').setup({
     end,
   },
 
-  -- { 'folke/tokyonight.nvim',
-  --   priority = 1000,
-  --   config = function()
-  --     ---@diagnostic disable-next-line: missing-fields
-  --     require('tokyonight').setup {
-  --       styles = {
-  --         comments = { italic = false }, -- Disable italics in comments
-  --       },
-  --     }
-  --
-  --     vim.cmd.colorscheme 'tokyonight-night'
-  --   end,
-  -- },
+  -- Dotfyle top colorschemes. Eager loading exposes every scheme to :Themes.
+  { 'catppuccin/nvim', name = 'catppuccin', lazy = false },
+  { 'folke/tokyonight.nvim', lazy = false },
+  { 'rebelot/kanagawa.nvim', lazy = false },
+  { 'rose-pine/neovim', name = 'rose-pine', lazy = false },
+  { 'EdenEast/nightfox.nvim', lazy = false },
+  { 'sainnhe/gruvbox-material', lazy = false },
+  { 'projekt0n/github-nvim-theme', lazy = false },
+  { 'sainnhe/everforest', lazy = false },
+  { 'scottmckendry/cyberdream.nvim', lazy = false },
+  { 'Mofiqul/vscode.nvim', lazy = false },
+  { 'olimorris/onedarkpro.nvim', lazy = false },
+  { 'Mofiqul/dracula.nvim', lazy = false },
+  { 'shaunsingh/nord.nvim', lazy = false },
+  { 'nyoom-engineering/oxocarbon.nvim', lazy = false },
+  { 'marko-cerovac/material.nvim', lazy = false },
+  { 'craftzdog/solarized-osaka.nvim', lazy = false },
+  { 'sainnhe/sonokai', lazy = false },
+  { 'AlexvZyl/nordic.nvim', lazy = false },
+  { 'bluz71/vim-moonfly-colors', lazy = false },
+  { 'neanias/everforest-nvim', lazy = false },
+  { 'tiagovla/tokyodark.nvim', lazy = false },
+  { 'ribru17/bamboo.nvim', lazy = false },
+  { 'savq/melange-nvim', lazy = false },
+  { 'sainnhe/edge', lazy = false },
 
   -- Highlight todo, notes, etc in comments
   {
@@ -828,26 +1105,104 @@ require('lazy').setup({
 
       local statusline = require 'mini.statusline'
 
-      statusline.setup { use_icons = vim.g.have_nerd_font }
+      local separator = vim.g.have_nerd_font and '' or '>'
+      local separator_reverse = vim.g.have_nerd_font and '' or '<'
+
+      local function group(hl, content) return '%#' .. hl .. '#' .. content end
+
+      local function join_sections(sections)
+        local visible = {}
+        for _, section in ipairs(sections) do
+          if section ~= '' then table.insert(visible, section) end
+        end
+        return table.concat(visible, ' ')
+      end
+
+      statusline.setup {
+        use_icons = vim.g.have_nerd_font,
+        content = {
+          active = function()
+            local mode, mode_hl = statusline.section_mode { trunc_width = 120 }
+            local git = statusline.section_git { trunc_width = 40 }
+            local devinfo = join_sections {
+              statusline.section_diff { trunc_width = 75 },
+              statusline.section_diagnostics { trunc_width = 75 },
+              statusline.section_lsp { trunc_width = 75 },
+            }
+            local filename = statusline.section_filename { trunc_width = 140 }
+            local fileinfo = statusline.section_fileinfo { trunc_width = 120 }
+            local search = statusline.section_searchcount { trunc_width = 75 }
+            local location = statusline.section_location { trunc_width = 75 }
+
+            local left = group(mode_hl, ' ' .. mode .. ' ')
+            if git ~= '' then
+              left = left
+                .. group(mode_hl .. 'GitSep', separator)
+                .. group('MiniStatuslineGit', ' ' .. git .. ' ')
+
+              if devinfo == '' then
+                left = left .. group('MiniStatuslineGitSepFilename', separator)
+              else
+                left = left
+                  .. group('MiniStatuslineGitSep', separator)
+                  .. group('MiniStatuslineDevinfo', ' ' .. devinfo .. ' ')
+                  .. group('MiniStatuslineInfoSep', separator)
+              end
+            elseif devinfo == '' then
+              left = left .. group(mode_hl .. 'SepFilename', separator)
+            else
+              left = left
+                .. group(mode_hl .. 'Sep', separator)
+                .. group('MiniStatuslineDevinfo', ' ' .. devinfo .. ' ')
+                .. group('MiniStatuslineInfoSep', separator)
+            end
+            left = left .. '%<' .. group('MiniStatuslineFilename', ' ' .. filename .. ' ')
+
+            local right
+            if fileinfo == '' then
+              right = group(mode_hl .. 'SepFilename', separator_reverse)
+            else
+              right = group('MiniStatuslineInfoSep', separator_reverse)
+                .. group('MiniStatuslineFileinfo', ' ' .. fileinfo .. ' ')
+                .. group(mode_hl .. 'Sep', separator_reverse)
+            end
+            right = right .. group(mode_hl, ' ' .. join_sections { search, location } .. ' ')
+
+            return left .. '%=' .. right
+          end,
+        },
+      }
       ---@diagnostic disable-next-line: duplicate-set-field
 
       statusline.section_location = function() return '%2l:%-2v' end
       ---@diagnostic disable-next-line: duplicate-set-field
-      statusline.section_git = function() return '' end
+      statusline.section_git = function(args)
+        if statusline.is_truncated(args.trunc_width) then return '' end
+
+        local branch = vim.b.gitsigns_head
+        if branch == nil or branch == '' then return '' end
+
+        local icon = vim.g.have_nerd_font and '' or 'git:'
+        return icon .. ' ' .. branch
+      end
 
       ---@diagnostic disable-next-line: duplicate-set-field
       statusline.section_filename = function()
-        local fname = vim.fn.fnamemodify(vim.api.nvim_buf_get_name(0), ':~:.')
+        local path = vim.api.nvim_buf_get_name(0)
 
-        if fname == '' then return '[No File Selected]' end
+        if path == '' then return '[No File Selected]' end
+
+        local fname = vim.fn.fnamemodify(path, ':t')
 
         local win_width = vim.api.nvim_win_get_width(0)
 
         local max_len = math.floor(win_width * 0.6)
 
-        if #fname <= max_len then return fname end
+        if vim.fn.strdisplaywidth(fname) <= max_len then return fname end
 
-        return '...' .. fname:sub(#fname - max_len + 4)
+        local visible_chars = math.max(max_len - 3, 1)
+        local start = math.max(vim.fn.strchars(fname) - visible_chars, 0)
+        return '...' .. vim.fn.strcharpart(fname, start)
       end
 
       -- ... and there is more!
