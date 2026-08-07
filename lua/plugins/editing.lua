@@ -51,8 +51,21 @@ return {
           }
         end
       end,
+      formatters = {
+        -- csharpier honours .editorconfig, unlike `dotnet format`.
+        -- Note: max_line_length is ignored by both, do not expect it to work.
+        csharpier = {
+          command = 'csharpier',
+          args = { 'format', '--write-stdout' },
+          to_stdin = true,
+        },
+      },
       formatters_by_ft = {
         lua = { 'stylua' },
+        cs = { 'csharpier' },
+        xml = { 'csharpier' }, -- .csproj / .props
+        -- razor is deliberately absent: no formatter handles it, so conform
+        -- falls back to the LSP (html-lsp) via lsp_format = 'fallback'.
         javascript = { 'prettierd', 'prettier', stop_after_first = true },
         javascriptreact = { 'prettierd', 'prettier', stop_after_first = true },
         typescript = { 'prettierd', 'prettier', stop_after_first = true },

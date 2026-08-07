@@ -29,6 +29,11 @@ vim.o.confirm = true
 vim.opt.shada = "'20,<50,s10,h"
 vim.opt_local.conceallevel = 2
 
+-- Neovim ships a `dotnet` compiler plugin; these tune what `:make` puts in the
+-- quickfix list. See `:help ft-dotnet-compiler`.
+vim.g.dotnet_errors_only = true
+vim.g.dotnet_show_project_file = false
+
 vim.diagnostic.config {
   update_in_insert = false,
   severity_sort = true,

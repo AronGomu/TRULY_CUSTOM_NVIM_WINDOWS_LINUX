@@ -48,6 +48,19 @@ if topbar.persisted_theme ~= nil then
   })
 end
 
+vim.api.nvim_create_autocmd('FileType', {
+  group = vim.api.nvim_create_augroup('dotnet-compiler', { clear = true }),
+  pattern = { 'cs', 'razor' },
+  desc = 'Send `dotnet build` output to the quickfix list',
+  callback = function(args)
+    vim.cmd.compiler 'dotnet'
+    vim.keymap.set('n', '<leader>mb', function()
+      vim.cmd.make()
+      vim.cmd.copen()
+    end, { buffer = args.buf, desc = '[M]ake: dotnet [b]uild' })
+  end,
+})
+
 vim.api.nvim_create_autocmd('TextYankPost', {
   desc = 'Highlight when yanking (copying) text',
   group = vim.api.nvim_create_augroup('kickstart-highlight-yank', { clear = true }),

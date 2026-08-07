@@ -9,7 +9,15 @@ return {
         ---@module 'mason.settings'
         ---@type MasonSettings
         ---@diagnostic disable-next-line: missing-fields
-        opts = {},
+        opts = {
+          -- roslyn (the official C#/Razor language server) lives in a third
+          -- party registry. It is NOT picked up by ensure_installed, install it
+          -- once by hand: :MasonInstall roslyn
+          registries = {
+            'github:mason-org/mason-registry',
+            'github:Crashdummyy/mason-registry',
+          },
+        },
       },
       -- Maps LSP server names between nvim-lspconfig and Mason package names.
       'mason-org/mason-lspconfig.nvim',
@@ -133,6 +141,27 @@ return {
           capabilities = capabilities,
         },
 
+        -- C# / Razor / Blazor. The server binary comes from Mason
+        -- (:MasonInstall roslyn); the razor language server (rzls) is dead and
+        -- must NOT be installed, roslyn ships Razor support itself.
+        roslyn_ls = {
+          capabilities = capabilities,
+          filetypes = { 'cs', 'razor' },
+          settings = {
+            ['csharp|background_analysis'] = {
+              dotnet_analyzer_diagnostics_scope = 'openFiles',
+              dotnet_compiler_diagnostics_scope = 'openFiles',
+            },
+            ['csharp|inlay_hints'] = {
+              csharp_enable_inlay_hints_for_types = true,
+              csharp_enable_inlay_hints_for_implicit_object_creation = true,
+            },
+            ['csharp|code_lens'] = {
+              dotnet_enable_references_code_lens = true,
+            },
+          },
+        },
+
         -- Special Lua Config, as recommended by neovim help docs
         lua_ls = {
           capabilities = capabilities,
@@ -164,7 +193,9 @@ return {
         },
       }
 
-      local ensure_installed = vim.tbl_keys(servers or {})
+      -- roslyn comes from a third party registry under a different name and is
+      -- installed manually, so keep mason-tool-installer from chasing it.
+      local ensure_installed = vim.tbl_filter(function(name) return name ~= 'roslyn_ls' end, vim.tbl_keys(servers or {}))
       vim.list_extend(ensure_installed, {
         -- Mason package names (mapped via mason-lspconfig when names differ)
         'angular-language-server',
@@ -182,6 +213,27 @@ return {
           vim.lsp.enable(name)
         end
       end
+
+      -- IMPORTANT: this has to run AFTER the servers are enabled, otherwise the
+      -- server setup puts native virtual text back and it fights with
+      -- tiny-inline-diagnostic.
+      vim.diagnostic.config {
+        underline = { severity = { min = vim.diagnostic.severity.WARN } },
+        virtual_text = false,
+        virtual_lines = false,
+        update_in_insert = false,
+        severity_sort = true,
+        float = { border = 'rounded', source = 'if_many' },
+        jump = { float = true },
+        signs = {
+          text = {
+            [vim.diagnostic.severity.ERROR] = ' ',
+            [vim.diagnostic.severity.WARN] = ' ',
+            [vim.diagnostic.severity.HINT] = ' ',
+            [vim.diagnostic.severity.INFO] = ' ',
+          },
+        },
+      }
     end,
   },
 
@@ -209,8 +261,9 @@ return {
     event = 'VeryLazy',
     priority = 1000,
     config = function()
+      -- NOTE: virtual_text is turned off in the lspconfig block above, after the
+      -- servers are enabled. Doing it here as well is not enough on its own.
       require('tiny-inline-diagnostic').setup()
-      vim.diagnostic.config { virtual_text = false } -- Disable Neovim's default virtual text diagnostics
     end,
   },
 }
