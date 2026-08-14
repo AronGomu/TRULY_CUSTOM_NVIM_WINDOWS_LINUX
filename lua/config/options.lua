@@ -27,7 +27,7 @@ vim.opt.colorcolumn = '80,120'
 vim.o.scrolloff = 10
 vim.o.confirm = true
 vim.opt.shada = "'20,<50,s10,h"
-vim.opt_local.conceallevel = 2
+vim.o.conceallevel = 2
 
 -- Neovim ships a `dotnet` compiler plugin; these tune what `:make` puts in the
 -- quickfix list. See `:help ft-dotnet-compiler`.
