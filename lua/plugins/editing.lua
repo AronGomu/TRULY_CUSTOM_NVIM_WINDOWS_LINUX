@@ -1,5 +1,3 @@
-local is_windows = require('utils.platform').is_windows
-
 ---@module 'lazy'
 ---@type LazySpec
 return {
@@ -18,6 +16,11 @@ return {
         topdelete = { text = '‾' }, ---@diagnostic disable-line: missing-fields
         changedelete = { text = '~' }, ---@diagnostic disable-line: missing-fields
       },
+      current_line_blame = true,
+      current_line_blame_opts = { delay = 300 }, ---@diagnostic disable-line: missing-fields
+      on_attach = function(bufnr)
+        vim.keymap.set('n', '<leader>gb', function() require('gitsigns').blame_line { full = true } end, { buffer = bufnr, desc = '[G]it [B]lame line' })
+      end,
     },
   },
 
@@ -91,20 +94,15 @@ return {
     cmd = { 'GrugFar', 'GrugFarWithin' },
     keys = {
       {
-        '<leader>sR',
+        '<leader>gf',
         function() require('grug-far').open() end,
-        desc = '[S]earch and [R]eplace',
+        desc = '[G]rep and replace in [F]iles',
       },
       {
-        '<leader>sR',
+        '<leader>gf',
         function() require('grug-far').with_visual_selection() end,
         mode = 'v',
-        desc = '[S]earch and [R]eplace selection',
-      },
-      {
-        '<leader>sW',
-        function() require('grug-far').open { prefills = { search = vim.fn.expand '<cword>' } } end,
-        desc = '[S]earch and replace current [W]ord',
+        desc = '[G]rep and replace selection in [F]iles',
       },
     },
   },
@@ -141,24 +139,11 @@ return {
   },
 
   {
-    'dinhhuy258/git.nvim',
-    config = function()
-      if not is_windows then
-        require('git').setup()
-        return
-      end
-
-      require('git').setup {
-        target_branch = function()
-          local result = vim.system({ 'git', 'symbolic-ref', '--quiet', '--short', 'refs/remotes/origin/HEAD' }, { text = true }):wait()
-          if result.code == 0 then
-            local branch = vim.trim(result.stdout or ''):gsub('^origin/', '')
-            if branch ~= '' then return branch end
-          end
-
-          return 'master'
-        end,
-      }
-    end,
+    'kdheepak/lazygit.nvim',
+    cmd = { 'LazyGit', 'LazyGitCurrentFile', 'LazyGitFilter', 'LazyGitFilterCurrentFile' },
+    dependencies = { { 'nvim-lua/plenary.nvim', lazy = true } },
+    keys = {
+      { '<leader>lz', '<cmd>LazyGit<cr>', desc = '[L]a[z]ygit' },
+    },
   },
 }
